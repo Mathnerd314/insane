@@ -40,7 +40,7 @@ debug = do
             liftIO $ print d
 
 dbg :: Show a => TC a -> TC ()
-dbg d = return () -- (liftIO . putStrLn) . show =<< d
+dbg d = (liftIO . putStrLn) . show =<< d
 
 checkProgram :: Abs.Program -> TC ()
 checkProgram (Abs.Prog ds) = do
