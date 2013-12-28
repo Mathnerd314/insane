@@ -25,7 +25,7 @@ instance DeBruijn Type' where
 	El t	-> El <$> trf t
 	Set	-> return Set
 	where
-	    trf x = transform f n x
+	    trf = transform f n
 
 instance DeBruijn a => DeBruijn (RBind a) where
     transform f n (RBind x a) =
@@ -38,7 +38,7 @@ instance DeBruijn Term' where
 	App s t		  -> uncurry App <$> trf (s,t)
 	Lam t		  -> Lam <$> trf t
 	where
-	    trf x = transform f n x
+	    trf = transform f n
 
 instance (DeBruijn a, DeBruijn b) => DeBruijn (a,b) where
     transform f n (x,y) = (,) <$> transform f n x <*> transform f n y

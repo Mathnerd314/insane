@@ -1,5 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, DeriveFunctor,
-             GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module TypeChecker.Monad where
 

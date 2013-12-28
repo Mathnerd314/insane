@@ -48,7 +48,10 @@ executable insane
   other-modules: Syntax, TypeChecker, Utils
   
   -- LANGUAGE extensions used by modules in this package.
-  other-extensions:    UndecidableInstances, FlexibleInstances, OverlappingInstances, ExistentialQuantification, DeriveFunctor, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, DeriveDataTypeable, DeriveFoldable, DeriveTraversable
+  default-extensions: FlexibleInstances, ExistentialQuantification, DeriveFunctor, NoMonomorphismRestriction,
+    MultiParamTypeClasses, FunctionalDependencies, DeriveDataTypeable, DeriveFoldable, DeriveTraversable
+  
+  other-extensions: UndecidableInstances, OverlappingInstances, GeneralizedNewtypeDeriving
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.6 && <4.7, mtl >=2.1, containers >=0.5, array, bound, pretty
