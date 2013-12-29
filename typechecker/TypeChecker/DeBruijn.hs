@@ -43,7 +43,7 @@ instance DeBruijn Term' where
 instance (DeBruijn a, DeBruijn b) => DeBruijn (a,b) where
     transform f n (x,y) = (,) <$> transform f n x <*> transform f n y
 
-instance DeBruijn a => DeBruijn (Abs a) where
+instance DeBruijn (f a) => DeBruijn (Abs f a) where
     transform f n (Abs x b) = Abs x <$> transform f (n + 1) b
 
 instance DeBruijn a => DeBruijn [a] where
@@ -68,7 +68,7 @@ substUnder n0 t = transform f n0
 	      | m == n	  = forceClosure =<< raiseByFrom (n - n0) n0 t
 	      | otherwise = return $ Var (m - 1)
 
-subst :: DeBruijn a => Term -> Abs a -> TC a
+subst :: DeBruijn (f a) => Term -> Abs f a -> TC (f a)
 subst t = substUnder 0 t . absBody
 
 substs :: DeBruijn a => [Term] -> a -> TC a

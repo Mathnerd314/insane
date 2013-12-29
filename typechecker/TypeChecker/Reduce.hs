@@ -20,7 +20,7 @@ import Utils
 
 data RedexView
 	= Iota Name	  [Term] -- | The number of arguments should be the same as the arity.
-	| Beta (Abs Term)  Term
+	| Beta (Abs TermX Name)  Term
 	| NonRedex Term'
   deriving (Show)
 

@@ -428,6 +428,6 @@ instance Convert Term' where
 instance (Convert a, Convert b) => Convert (a,b) where
     (x,y) === (x',y') = do x === x'; y === y'
 
-instance Convert a => Convert (Abs a) where
+instance Convert (f a) => Convert (Abs f a) where
     (===) = (===) `on` absBody
 

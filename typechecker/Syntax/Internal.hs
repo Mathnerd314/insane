@@ -73,7 +73,7 @@ type Telescope = TelescopeX Term
 data RBind a = RBind String a
   deriving (Show)
 
-data TypeX' a = Pi (TypeX a) (Abs (TypeX a))
+data TypeX' a = Pi (TypeX a) (Abs TypeX a)
            | RPi (TelescopeX a) (TypeX a)
 	   | Fun (TypeX a) (TypeX a)
 	   | El a
@@ -82,17 +82,17 @@ data TypeX' a = Pi (TypeX a) (Abs (TypeX a))
 
 type Type' = TypeX' Term
     
-data TermX' a = Lam (Abs (TermX a))
+data TermX' a = Lam (Abs TermX a)
 	   | App (TermX a) (TermX a)
 	   | Var DeBruijnIndex
 	   | Def a
     deriving (Show, Typeable)
 
 type Term' = TermX' Name
-    
-data Abs a = Abs { absName :: Name, absBody :: a }
-    deriving (Typeable, Functor, Foldable, Traversable)
 
-instance Show a => Show (Abs a) where
+data Abs f a = Abs { absName :: Name, absBody :: f a }
+    deriving (Functor, Foldable, Traversable)
+
+instance Show (f a) => Show (Abs f a) where
     show (Abs _ b) = show b
 

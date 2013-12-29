@@ -72,8 +72,8 @@ instance Force Term' where
 instance (Force a, Force b) => Force (a,b) where
     force (x,y) = force x >> force y
 
-instance Force a => Force (Abs a) where
-    force = traverse_ force
+instance Force (f a) => Force (Abs f a) where
+    force a = force (absBody a)
 
 instance Force a => Force [a] where
     force = traverse_ force

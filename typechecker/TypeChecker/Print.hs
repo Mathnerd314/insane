@@ -120,6 +120,6 @@ prettyPat n p ret = case p of
 	mparens' True  = PP.parens
 	mparens' False = id
 
-instance Pretty a => Pretty (Abs a) where
+instance Pretty (f a) => Pretty (Abs f a) where
     prettyPrec n (Abs x b) = extendContext_ x $ prettyPrec n b
 
