@@ -68,13 +68,13 @@ data Pattern = VarP Name
 type Name	   = String
 type DeBruijnIndex = Integer
 
-type TelescopeX a = [RBind (TypeX a)]
-type Telescope = TelescopeX Term
+type TelescopeX f a = [RBind (f a)]
+type Telescope = TelescopeX TypeX Term
 data RBind a = RBind String a
   deriving (Show)
 
 data TypeX' a = Pi (TypeX a) (Abs TypeX a)
-           | RPi (TelescopeX a) (TypeX a)
+           | RPi (TelescopeX TypeX a) (TypeX a)
 	   | Fun (TypeX a) (TypeX a)
 	   | El a
 	   | Set
