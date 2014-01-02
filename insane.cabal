@@ -50,12 +50,12 @@ executable insane
   -- LANGUAGE extensions used by modules in this package.
   default-extensions: FlexibleContexts, FlexibleInstances, ExistentialQuantification, DeriveFunctor,
     NoMonomorphismRestriction, MultiParamTypeClasses, FunctionalDependencies, DeriveDataTypeable,
-    DeriveFoldable, DeriveTraversable
+    DeriveFoldable, DeriveTraversable, StandaloneDeriving, ConstraintKinds, GADTs
   
   other-extensions: UndecidableInstances, OverlappingInstances, GeneralizedNewtypeDeriving
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.6 && <4.7, mtl >=2.1, containers >=0.5, array, bound, pretty
+  build-depends:       base >=4.6 && <4.7, mtl >=2.1, containers >=0.5, array, bound, prelude-extras, pretty
   
   -- Directories containing source files.
   hs-source-dirs: typechecker

@@ -1,10 +1,9 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances #-}
-
 module TypeChecker.Print where
 
 import Control.Monad.Error
 import Control.Applicative
 import qualified Text.PrettyPrint as PP
+import Data.Typeable
 
 import Syntax.Internal
 import qualified Syntax.Abs as Abs
@@ -40,12 +39,29 @@ class Pretty a where
     pretty	 = prettyPrec 0
     prettyPrec _ = pretty
 
-instance (Pointer ptr a, Pretty a) => Pretty ptr where
-    prettyPrec n p = do
+
+prettyPrecX :: (Pointer ptr a, Pretty a) => Int -> ptr -> TC Doc
+prettyPrecX n p = do
     	cl <- getClosure p
 	case cl of
 	    Unevaluated	_   -> text "_"
 	    Evaluated x	    -> prettyPrec n x
+
+
+instance (Pretty a, Pretty b) => Pretty (a,b) where
+  pretty (x,y) = parens (sep [pretty x <> comma, pretty y])
+
+instance Pretty () where
+  pretty _ = text "()"
+
+instance Pretty Name where
+  pretty n = text n
+
+instance (Pretty a, Typeable a, Show a) => Pretty (TypeX a) where prettyPrec = prettyPrecX
+instance (Pretty a, Typeable a, Show a) => Pretty (TermX a) where prettyPrec = prettyPrecX
+instance Pretty Clause where prettyPrec = prettyPrecX
+instance (Pretty a, Typeable a, Show a, Pretty b, Typeable b, Show b) => Pretty (Pair a b) where prettyPrec = prettyPrecX
+instance Pretty Unit where prettyPrec = prettyPrecX
 
 instance Pretty Definition where
     pretty (Axiom x t) =
@@ -68,7 +84,7 @@ instance Pretty Clause' where
 	    , nest 2 $ pretty t
 	    ]
 
-instance Pretty Type' where
+instance Pretty a => Pretty (TypeX' a) where
     prettyPrec n t = case t of
 	Pi a b ->
 	    mparens (n > 0) $
@@ -93,14 +109,14 @@ instance Pretty a => Pretty (RBind a) where
     pretty (RBind x a) =
       hsep [ text x, text ":", pretty a ]
 
-instance Pretty Term' where
+instance Pretty a => Pretty (TermX' a) where
     prettyPrec n t = case t of
-	Var m	-> do
+{-	Var m	-> do
 	    x <- getVarName m
 	    text x
           `catchError` \_ ->
-            text ("!" ++ show m ++ "!")
-	Def x	-> text x
+            text ("!" ++ show m ++ "!")-}
+	Def x	-> pretty x
 	App s t ->
 	    mparens (n > 5) $
 	    sep [ prettyPrec 5 s, prettyPrec 6 t ]
@@ -120,6 +136,6 @@ prettyPat n p ret = case p of
 	mparens' True  = PP.parens
 	mparens' False = id
 
-instance Pretty (f a) => Pretty (Abs f a) where
+instance Pretty a => Pretty (Abs a) where
     prettyPrec n (Abs x b) = extendContext_ x $ prettyPrec n b
 
