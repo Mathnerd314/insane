@@ -4,6 +4,7 @@ module TypeChecker.Monad.Context where
 import Control.Applicative
 import Control.Monad.Reader
 import Data.List
+import Bound
 
 import Syntax.Internal
 import TypeChecker.Monad

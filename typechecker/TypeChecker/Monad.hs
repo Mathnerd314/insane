@@ -8,6 +8,7 @@ import Control.Monad.Reader
 import Control.Monad.Error
 import Data.Map as Map
 import Data.Dynamic
+import Bound
 
 import Syntax.Internal
 
@@ -40,9 +41,9 @@ howForceful = asks envForce
 
 type Context = [ContextEntry]
 
-data ContextEntry
-  = VBind Name Type
-  | TBind Telescope
+data ContextEntry where
+  VBind :: Name -> TypeX Term -> ContextEntry
+  TBind :: TelescopeX (TypeX Term) -> ContextEntry
 
 ---------------------------------------------------------------------------
 -- * State

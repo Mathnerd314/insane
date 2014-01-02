@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances, FlexibleInstances, OverlappingInstances #-}
 
 module TypeChecker where
 
@@ -7,6 +6,7 @@ import Control.Monad.Error
 
 import qualified Data.Map as Map
 import Data.List
+import Data.Typeable
 
 import qualified Syntax.Abs as Abs
 import Syntax.Print
@@ -375,18 +375,21 @@ inferType' e0 = do
 class Convert a where
     (===) :: a -> a -> TC ()
 
-instance (Pretty a, Pointer ptr a, Convert a, Force a, WHNF ptr) => Convert ptr where
-    p === q
-        | p == q    = return ()
-        | otherwise = do
-            whnf (p, q)
-            x <- forceClosure p
-            y <- forceClosure q
-            x === y `sayWhen` do
-              gently $ force (x, y)
-              sep [ text "when checking that"
-                  , nest 2 $ pretty x <+> text "=="
-                  , nest 2 $ pretty y ]
+(===#) :: (Pretty a, Pointer ptr a, Convert a, Force a, Eq ptr, WHNF ptr) => ptr -> ptr -> TC ()
+p ===# q
+    | p == q    = return ()
+    | otherwise = do
+        whnf (p, q)
+        x <- forceClosure p
+        y <- forceClosure q
+        x === y `sayWhen` do
+          gently $ force (x, y)
+          sep [ text "when checking that"
+              , nest 2 $ pretty x <+> text "=="
+              , nest 2 $ pretty y ]
+
+instance Convert Type where (===) = (===#)
+instance Convert Term where (===) = (===#)
 
 instance Convert Type' where
     Pi a b  === Pi a' b'  = (a,b) === (a',b')
