@@ -3,6 +3,7 @@ module TypeChecker where
 
 import Control.Applicative
 import Control.Monad.Error
+import Control.Monad.Writer
 
 import qualified Data.Map as Map
 import Data.List
@@ -37,10 +38,10 @@ debug = do
     where
         pr e = do
             d <- pretty e
-            liftIO $ print d
+            tell $ show d
 
 dbg :: Show a => TC a -> TC ()
-dbg d = (liftIO . putStrLn) . show =<< d
+dbg d = (tell . (++"\n")) . show =<< d
 
 checkProgram :: Abs.Program -> TC ()
 checkProgram (Abs.Prog ds) = do

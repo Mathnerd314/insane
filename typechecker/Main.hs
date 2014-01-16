@@ -19,7 +19,8 @@ checkFile file = do
     case pProgram $ resolveLayout True $ myLexer s of
 	Bad s	-> putStrLn $ "Parse error: " ++ s
 	Ok p	-> do
-	    r <- runTC $ checkProgram p
+	    let (r,dbg) = runTC $ checkProgram p
+	    putStrLn dbg
 	    case r of
 		Left err -> print err
 		Right () -> putStrLn "OK"

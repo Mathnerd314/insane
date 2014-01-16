@@ -6,6 +6,7 @@ import Control.Applicative
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Error
+import Control.Monad.Writer
 import Data.Map as Map
 import Data.Dynamic
 import Bound
@@ -129,17 +130,17 @@ instance Error TCError where
 -- * The Monad
 ---------------------------------------------------------------------------
 
-newtype TC a = TC { unTC :: ReaderT TCEnv (ErrorT TCError (StateT TCState IO)) a }
-    deriving (Functor, MonadReader TCEnv, MonadState TCState, MonadError TCError, MonadIO, Monad)
+type DbgMsg = String
+
+newtype TC a = TC { unTC :: ReaderT TCEnv (ErrorT TCError (StateT TCState (Writer DbgMsg))) a }
+    deriving (Functor, MonadReader TCEnv, MonadState TCState, MonadError TCError, MonadWriter DbgMsg, Monad)
 
 instance Applicative TC where
   pure  = return
   (<*>) = ap
 
-runTC :: TC a -> IO (Either TCError a)
-runTC (TC m) =
-    flip evalStateT initState $
-    runErrorT		      $
-    flip runReaderT emptyEnv  $
-    m
+runTC :: TC a -> (Either TCError a, DbgMsg)
+runTC (TC m) = runWriter . flip evalStateT initState . runErrorT . flip runReaderT emptyEnv $ m
 
+runTC' :: TC a -> (TCEnv -> TCState -> ((Either TCError a, TCState), DbgMsg))
+runTC' (TC m) e s = runWriter . flip runStateT s . runErrorT . flip runReaderT e $ m
