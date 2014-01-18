@@ -17,18 +17,18 @@ checkFile :: FilePath -> IO ()
 checkFile file = do
     s <- readFile file
     case pProgram $ resolveLayout True $ myLexer s of
-	Bad s	-> putStrLn $ "Parse error: " ++ s
-	Ok p	-> do
-	    let (r,dbg) = runTC $ checkProgram p
-	    putStrLn dbg
-	    case r of
-		Left err -> print err
-		Right () -> putStrLn "OK"
+        Bad s   -> putStrLn $ "Parse error: " ++ s
+        Ok p    -> do
+            let (r,dbg) = runTC $ checkProgram p
+            putStrLn dbg
+            case r of
+                Left err -> print err
+                Right () -> putStrLn "OK"
 
 main = do
     args <- getArgs
     prog <- getProgName
     case args of
-	[file]  -> checkFile file
-	_	-> putStrLn $ "Usage: " ++ prog ++ " FILE"
+        [file]  -> checkFile file
+        _       -> putStrLn $ "Usage: " ++ prog ++ " FILE"
 

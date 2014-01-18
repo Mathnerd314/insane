@@ -19,9 +19,9 @@ newtype Ptr = Ptr Integer
 instance Show Ptr where
     show (Ptr n) = "*" ++ show n
 
-newtype TypeX a	 = TypePtr   Ptr deriving (Eq, Typeable, Functor, Foldable, Traversable)
-newtype TermX a	 = TermPtr   Ptr deriving (Eq, Typeable, Functor, Foldable, Traversable)
-newtype Clause	 = ClausePtr Ptr deriving (Eq, Typeable)
+newtype TypeX a  = TypePtr   Ptr deriving (Eq, Typeable, Functor, Foldable, Traversable)
+newtype TermX a  = TermPtr   Ptr deriving (Eq, Typeable, Functor, Foldable, Traversable)
+newtype Clause   = ClausePtr Ptr deriving (Eq, Typeable)
 newtype Pair a b = PairPtr   Ptr deriving (Eq, Typeable)
 newtype Unit     = UnitPtr   Ptr deriving (Eq, Typeable)
 
@@ -43,9 +43,9 @@ instance PointerX (TermX a) (TermX' a) where toRawPtr (TermPtr p) = p; fromRawPt
 instance PointerX Clause Clause'     where toRawPtr (ClausePtr p) = p; fromRawPtr = ClausePtr
 instance PointerX (Pair a b) (a,b)   where toRawPtr (PairPtr p)   = p; fromRawPtr = PairPtr
 
-instance Show (TypeX a)	 where show = show . toRawPtr
-instance Show (TermX a)	 where show = show . toRawPtr
-instance Show Clause	 where show = show . toRawPtr
+instance Show (TypeX a)  where show = show . toRawPtr
+instance Show (TermX a)  where show = show . toRawPtr
+instance Show Clause     where show = show . toRawPtr
 instance Show (Pair a b) where show = show . toRawPtr
 instance Show Unit       where show = show . toRawPtr
 instance Show1 TermX
@@ -56,10 +56,10 @@ instance Show1 TypeX
 type Arity = Int
 
 data Definition
-	= Axiom Name Type
-	| Defn  Name Type [Clause]
-	| Data  Name Type [Constructor]
-	| Cons  Name Type
+        = Axiom Name Type
+        | Defn  Name Type [Clause]
+        | Data  Name Type [Constructor]
+        | Cons  Name Type
     deriving (Show, Typeable)
 
 data Clause' = Clause [Pattern] Term
@@ -69,10 +69,10 @@ data Constructor = Constr Name Arity
     deriving (Show, Typeable)
 
 data Pattern = VarP Name
-	     | ConP Name [Pattern]
+             | ConP Name [Pattern]
     deriving (Show, Typeable)
 
-type Name	   = String
+type Name          = String
 type DeBruijnIndex = Integer
 
 type TelescopeX a = [RBind a]
@@ -82,17 +82,17 @@ data RBind a = RBind String a
 
 data TypeX' a = Pi (TypeX a) (Abs (TypeX a))
            | RPi (TelescopeX (TypeX a)) (TypeX a)
-	   | Fun (TypeX a) (TypeX a)
-	   | El a
-	   | Set
+           | Fun (TypeX a) (TypeX a)
+           | El a
+           | Set
     deriving (Show, Typeable, Functor)
 
 type Type' = TypeX' Term
     
 data TermX' a = Lam (Abs (TermX a))
-	   | App (TermX a) (TermX a)
-	   | Var DeBruijnIndex
-	   | Def a
+           | App (TermX a) (TermX a)
+           | Var DeBruijnIndex
+           | Def a
     deriving (Show, Typeable, Functor)
 
 type Term' = TermX' Name

@@ -51,11 +51,11 @@ data ContextEntry where
 ---------------------------------------------------------------------------
 
 data TCState = TCState
-	{ stHeap        :: Heap
-	, stSig         :: Signature
+        { stHeap        :: Heap
+        , stSig         :: Signature
         , stConstraints :: [Constraint]
-	, stNextFree    :: Ptr
-	}
+        , stNextFree    :: Ptr
+        }
 
 initState :: TCState
 initState = TCState
@@ -88,10 +88,10 @@ instance Show HeapObject where
     show (HpObj x) = show x
 
 data Closure a = Evaluated a
-	       | Unevaluated (TCClosure a)
+               | Unevaluated (TCClosure a)
 
 instance Show a => Show (Closure a) where
-    show (Evaluated x)	 = show x
+    show (Evaluated x)   = show x
     show (Unevaluated _) = "_"
 
 data TCClosure a = TCCl

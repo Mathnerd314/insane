@@ -37,8 +37,8 @@ instance Force Char where
 instance Force Definition where
     force (Axiom _ t)   = force t
     force (Defn _ t cs) = force (t,cs)
-    force (Data _ t _)	= force t
-    force (Cons _ t)	= force t
+    force (Data _ t _)  = force t
+    force (Cons _ t)    = force t
 
 forceX :: (Pointer ptr a, Force a) => ptr -> TC ()
 forceX p = do
@@ -59,28 +59,28 @@ instance Force () where
 
 instance Force Clause' where
     force c =
-	case c of
-	    Clause ps t -> force t
+        case c of
+            Clause ps t -> force t
 
 instance (Force a, Typeable a, Show a) => Force (TypeX' a) where
     force a =
-	case a of
-	    Pi a b    -> force (a,b)
+        case a of
+            Pi a b    -> force (a,b)
             RPi tel a -> force (tel, a)
-	    Fun a b   -> force (a,b)
-	    Set       -> return ()
-	    El t      -> force t
+            Fun a b   -> force (a,b)
+            Set       -> return ()
+            El t      -> force t
 
 instance Force a => Force (RBind a) where
   force (RBind _ a) = force a
 
 instance (Force a, Typeable a, Show a) => Force (TermX' a) where
     force t =
-	case t of
-	    Var n   -> return ()
-	    Def c   -> return ()
-	    App s t -> force (s,t)
-	    Lam t   -> force t
+        case t of
+            Var n   -> return ()
+            Def c   -> return ()
+            App s t -> force (s,t)
+            Lam t   -> force t
 
 instance (Force a, Force b) => Force (a,b) where
     force (x,y) = force x >> force y

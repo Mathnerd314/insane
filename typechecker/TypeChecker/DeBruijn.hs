@@ -22,15 +22,15 @@ instance DeBruijn Term where transform = transformX
 
 instance (DeBruijn a, Typeable a, Show a) => DeBruijn (TypeX' a) where
     transform f n t = case t of
-	Pi a b	-> uncurry Pi  <$> trf (a,b)
+        Pi a b  -> uncurry Pi  <$> trf (a,b)
         RPi tel a -> uncurry RPi <$> transform f n' (tel, a)
           where n' = n + fromIntegral (length tel)
-	Fun a b -> uncurry Fun <$> trf (a,b)
-	El t	-> El <$> trf t
-	Set	-> return Set
-	where
-	    trf :: (DeBruijn a) => a -> TC a
-	    trf = transform f n
+        Fun a b -> uncurry Fun <$> trf (a,b)
+        El t    -> El <$> trf t
+        Set     -> return Set
+        where
+            trf :: (DeBruijn a) => a -> TC a
+            trf = transform f n
 
 instance DeBruijn a => DeBruijn (RBind a) where
     transform f n (RBind x a) =
@@ -41,13 +41,13 @@ instance DeBruijn Char where
       
 instance DeBruijn Term' where
     transform f n t = case t of
-	Def f	-> Def <$> trf f
-	Var m	-> f n m
-	App s t	-> uncurry App <$> trf (s,t)
-	Lam t	-> Lam <$> trf t
-	where
-	    trf :: (DeBruijn a) => a -> TC a
-	    trf = transform f n
+        Def f   -> Def <$> trf f
+        Var m   -> f n m
+        App s t -> uncurry App <$> trf (s,t)
+        Lam t   -> Lam <$> trf t
+        where
+            trf :: (DeBruijn a) => a -> TC a
+            trf = transform f n
 
 instance (DeBruijn a, DeBruijn b) => DeBruijn (a,b) where
     transform f n (x,y) = (,) <$> transform f n x <*> transform f n y
@@ -61,9 +61,9 @@ instance DeBruijn a => DeBruijn [a] where
 raiseByFrom :: DeBruijn a => Integer -> Integer  -> a -> TC a
 raiseByFrom k = transform f
     where
-	f :: Integer -> DeBruijnIndex -> TC (TermX' b)
-	f n m | m < n	  = return $ Var m
-	      | otherwise = return $ Var (m + k)
+        f :: Integer -> DeBruijnIndex -> TC (TermX' b)
+        f n m | m < n     = return $ Var m
+              | otherwise = return $ Var (m + k)
 
 raiseBy :: DeBruijn a => Integer -> a -> TC a
 raiseBy k = raiseByFrom k 0
@@ -74,9 +74,9 @@ raise = raiseBy 1
 substUnder  :: DeBruijn a => Integer -> Term -> a -> TC a
 substUnder n0 t = transform f n0
     where
-	f n m | m < n	  = return $ Var m
-	      | m == n	  = forceClosure =<< raiseByFrom (n - n0) n0 t
-	      | otherwise = return $ Var (m - 1)
+        f n m | m < n     = return $ Var m
+              | m == n    = forceClosure =<< raiseByFrom (n - n0) n0 t
+              | otherwise = return $ Var (m - 1)
 
 subst :: DeBruijn a => Term -> Abs a -> TC a
 subst t = substUnder 0 t . absBody
@@ -94,21 +94,21 @@ class MonadLike f where
 instance MonadLike TypeX' where
   ret = return . El
   bind f x = case x of
-	Pi a (Abs n b) -> Pi  <$> liftPtrM (bind f) a <*> (Abs n <$> magic f b)
+        Pi a (Abs n b) -> Pi  <$> liftPtrM (bind f) a <*> (Abs n <$> magic f b)
         RPi tel a -> RPi <$> mapM (\(RBind n k) -> RBind n <$> (liftPtrM (bind f) k)) tel <*> liftPtrM (bind f) a
-	Fun a b -> Fun <$> liftPtrM (bind f) a <*> liftPtrM (bind f) b
-	El t	-> f t
-	Set	-> return Set
+        Fun a b -> Fun <$> liftPtrM (bind f) a <*> liftPtrM (bind f) b
+        El t    -> f t
+        Set     -> return Set
 
 magic :: (Show k, Typeable k, Show a, Typeable a, Show b, Typeable b,
-	      Typeable (g a),
-	      Typeable (g b),
-	      Pointer (g (Var k (g a))) (f (Var k (g a))),
-	      Pointer (g (Var k (g b))) (f (Var k (g b))),
-	      Pointer (g a) (f a),
-	      Pointer (g b) (f b),
-	      MonadLike f) =>
-	       (a -> TC (f b)) -> Scope k g a -> TC (Scope k g b)
+              Typeable (g a),
+              Typeable (g b),
+              Pointer (g (Var k (g a))) (f (Var k (g a))),
+              Pointer (g (Var k (g b))) (f (Var k (g b))),
+              Pointer (g a) (f a),
+              Pointer (g b) (f b),
+              MonadLike f) =>
+               (a -> TC (f b)) -> Scope k g a -> TC (Scope k g b)
 magic f (Scope s) = Scope <$> liftPtrM (bind (\x -> ret =<< (m3 f x))) s
 
 m3 = traverse . liftPtrM . bind

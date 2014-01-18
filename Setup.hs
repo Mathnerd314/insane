@@ -12,9 +12,9 @@ import Data.List
 
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks
-       { hookedPrograms = [ bnfcProgram ]
-       , hookedPreProcessors = [ ("cf", bnfc) ]
-       }
+         { hookedPrograms = [ bnfcProgram ]
+         , hookedPreProcessors = [ ("cf", bnfc) ]
+         }
 
 bnfcProgram :: Program
 bnfcProgram = (simpleProgram "BNFC")
