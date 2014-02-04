@@ -77,8 +77,7 @@ instance Force a => Force (RBind a) where
 instance (Force a, Typeable a, Show a) => Force (TermX' a) where
     force t =
         case t of
-            Var n   -> return ()
-            Def c   -> return ()
+            Def c   -> force c
             App s t -> force (s,t)
             Lam t   -> force t
 

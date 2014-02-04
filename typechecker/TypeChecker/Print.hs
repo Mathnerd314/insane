@@ -4,6 +4,7 @@ import Control.Monad.Error
 import Control.Applicative
 import qualified Text.PrettyPrint as PP
 import Data.Typeable
+import Bound
 
 import Syntax.Internal
 import qualified Syntax.Abs as Abs
@@ -48,11 +49,14 @@ instance Pretty () where
 instance Pretty Name where
   pretty n = text n
 
+instance Pretty Ptr where
+  pretty (Ptr p) = text ("_" ++ show p)
+
 prettyPrecX :: (Pointer ptr a, Pretty a) => Int -> ptr -> TC Doc
 prettyPrecX n p = do
         cl <- getClosure p
         case cl of
-            Unevaluated _   -> text "_"
+            Unevaluated _   -> prettyPrec n (toRawPtr p)
             Evaluated x     -> prettyPrec n x
 
 instance Pretty Type where prettyPrec = prettyPrecX
@@ -107,14 +111,18 @@ instance Pretty a => Pretty (RBind a) where
     pretty (RBind x a) =
       hsep [ text x, text ":", pretty a ]
 
-instance (Pretty a, Typeable a, Show a) => Pretty (TermX' a) where
+instance Pretty a => Pretty (Var DeBruijnIndex a) where
     prettyPrec n t = case t of
-        Var m   -> do
+      B m -> do
             x <- getVarName m
             text x
           `catchError` \_ ->
             text ("!" ++ show m ++ "!")
-        Def x   -> pretty x
+      F x -> prettyPrec n x
+
+instance (Pretty a, Typeable a, Show a) => Pretty (TermX' a) where
+    prettyPrec n t = case t of
+        Def x -> prettyPrec n x
         App s t ->
             mparens (n > 5) $
             sep [ prettyPrec 5 s, prettyPrec 6 t ]

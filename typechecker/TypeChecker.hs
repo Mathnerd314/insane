@@ -8,6 +8,7 @@ import Control.Monad.Writer
 import qualified Data.Map as Map
 import Data.List
 import Data.Typeable
+import Bound
 
 import qualified Syntax.Abs as Abs
 import Syntax.Print
@@ -26,6 +27,9 @@ import Utils
 
 identToName :: Abs.Ident -> Name
 identToName (Abs.Ident x) = x
+
+defName :: Name -> Term'
+defName = Def . F . Def
 
 debug :: TC ()
 debug = do
@@ -149,7 +153,7 @@ isDatatype p = do
             (d,_):args <- spine t
             d <- forceClosure d
             case d of
-                Def d   -> return (d, map fst args)
+                Def (F (Def d))   -> return (d, map fst args)
                 _       -> badData
         _       -> badData
     where
@@ -208,7 +212,7 @@ checkPatterns ps0@(p:ps) a ret = do
           Just xs -> do
             let n  = genericLength xs
             a <- raiseBy n a
-            vs <- mapM evaluated [ Var i | i <- reverse [0..n - 1] ]
+            vs <- mapM evaluated [ Def (B i) | i <- reverse [0..n - 1] ]
             b <- piApply a vs
             extendContextTel [ RBind x a | (x, RBind _ a) <- zip xs tel ] $
               checkPatterns ps2 b $ \m us b -> do
@@ -218,7 +222,7 @@ checkPatterns ps0@(p:ps) a ret = do
 checkPattern :: Pattern -> Type -> (Integer -> Term -> TC a) -> TC a
 checkPattern p a ret =
     case p of
-        VarP x    -> extendContext x a $ ret 1 =<< evaluated (Var 0)
+        VarP x    -> extendContext x a $ ret 1 =<< evaluated (Def (B 0))
         ConP x ps -> do
             b       <- defType x
             (d, us) <- isDatatype a
@@ -231,7 +235,7 @@ checkPattern p a ret =
                                         , nest 2 $ text "expected:" <+> pretty a
                                         , nest 2 $ text "inferred:" <+> pretty a' ]
                     fail $ s ++ "\n" ++ s'
-                h <- evaluated (Def x)
+                h <- evaluated (defName x)
                 ret n =<< apps h (us ++ ts)
     where
         apps :: Term -> [Term] -> TC Term
@@ -353,10 +357,10 @@ inferType' e0 = do
   case e0 of
     Abs.Name i -> do
          t <- defType x
-         return (Def x, t)
+         return (defName x, t)
      `catchError` \_ -> do
          (n,t) <- lookupContext x
-         return (Var n, t)
+         return (Def (B n), t)
      where
          x = identToName i
     Abs.App{} -> do
@@ -391,6 +395,7 @@ p ===# q
 
 instance Convert Type where (===) = (===#)
 instance Convert Term where (===) = (===#)
+instance Convert (TermX Name) where (===) = (===#)
 
 instance Convert Type' where
     Pi a b  === Pi a' b'  = (a,b) === (a',b')
@@ -407,6 +412,22 @@ instance Convert Type' where
     El t    === El t'     = t === t'
     a       === b         = fail . show =<< pretty a <+> text "!=" <+> pretty b
 
+instance Convert (TermX' Name) where
+    a === b = test a b
+        where
+            test (Lam s) (Lam t) =
+                extendContext (absName s) (error "<unknown type>") $ s === t
+            test (App s s') (App t t') = do
+                s  === t
+                s' === t'
+            test (Def f) (Def g)
+                | f == g    = return ()
+                | otherwise = fail $ f ++ " != " ++ g
+            test s t = do
+                force (s, t) `catchError` \_ -> return ()
+                d <- pretty s <+> text " != " <+> pretty t
+                fail $ show d
+
 instance Convert Term' where
     a === b = test a b
         where
@@ -415,15 +436,13 @@ instance Convert Term' where
             test (App s s') (App t t') = do
                 s  === t
                 s' === t'
-            test (Var n) (Var m)
+            test (Def (B n)) (Def (B m))
                 | n == m    = return ()
                 | otherwise = do
                     x <- getVarName n
                     y <- getVarName m
                     fail $ x ++ " (" ++ show n ++ ") != " ++ y ++ " (" ++ show m ++ ")"
-            test (Def f) (Def g)
-                | f == g    = return ()
-                | otherwise = fail $ f ++ " != " ++ g
+            test (Def (F f)) (Def (F g)) = f === g
             test s t = do
                 force (s, t) `catchError` \_ -> return ()
                 d <- pretty s <+> text " != " <+> pretty t

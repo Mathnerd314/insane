@@ -7,6 +7,8 @@ import Control.Monad
 import Data.Monoid
 import Data.Foldable hiding (foldr1)
 import Data.Traversable hiding (mapM)
+import Data.Typeable
+import Bound
 
 import Syntax.Internal
 import TypeChecker.Monad
@@ -18,58 +20,105 @@ import TypeChecker.Print
 import TypeChecker.Force
 import Utils
 
-data RedexView
-        = Iota Name       [Term] -- | The number of arguments should be the same as the arity.
-        | Beta (Abs Term)  Term
-        | NonRedex Term'
+type RedexView = RedexViewX (Var DeBruijnIndex (TermX' Name))
+
+data RedexViewX a
+        = Iota Name       [TermX a] -- | The number of arguments should be the same as the arity.
+        | Beta (Abs (TermX a)) (TermX a)
+        | NonRedex (TermX' a)
   deriving (Show)
 
--- | @spine (f a b c) = [(f, f), (a, f a), (b, f a b), (c, f a b c)]@
-spine :: Term -> TC [(Term, Term)]
-spine p = do
-    t <- forceClosure p
-    case t of
-        App s t -> do
-            sp <- spine s
-            return $ sp ++ [(t, p)]
-        _       -> return [(p,p)]
+type ConView = ConViewX (Var DeBruijnIndex (TermX' Name))
+data ConViewX a = ConApp Name [TermX a]
+             | NonCon (TermX' a)
 
-redexView :: Term -> TC RedexView
-redexView t = do
-    sp <- spine t
-    case sp of
-        (h,_) : args -> do
-            t <- forceClosure h
-            case t of
-                Var x   -> other sp
-                Def c   -> do
-                    ar <- functionArity c
-                    case ar of
-                        Just n | n == length args
-                          -> return $ Iota c $ map fst args
-                        _ -> other sp
-                Lam s   -> case args of
-                    [(t,_)] -> return $ Beta s t
-                    _       -> other sp
-                App s t -> fail "redexView: impossible App"
-        _ -> fail "redexView: impossibly empty spine"
+class SpineX a where
+  spineX :: (Typeable b, Show b) => TermX' a -> (TermX' a -> TermX' b) -> TC [(TermX b, TermX' b)]
+  redexViewX :: (Typeable b, Show b) => TermX' a -> (TermX' a -> TermX' b) -> TC (RedexViewX b)
+  conViewX :: (Typeable b, Show b) => TermX' a -> (TermX' a -> TermX' b) -> TC (ConViewX b)
+
+instance SpineX Name where
+  spineX p f = 
+    case p of
+        App s' t -> do
+            s <- forceClosure s'
+            sp <- spineX s f
+            t' <- liftPtr f t
+            return $ sp ++ [(t', f p)]
+        _  -> do
+          p' <- evaluated (f p)
+          return [(p',f p)]
+  redexViewX p f = do
+      (h,_) : args <- spineX p id
+      t <- forceClosure h
+      case t of
+          Def c -> do
+            ar <- functionArity c
+            case ar of
+                Just n | n == length args
+                  -> Iota c <$> mapM (liftPtr f . fst) args
+                _ -> other
+          Lam s -> case args of
+              [(t,_)] -> Beta <$> traverse (liftPtr f) s <*> liftPtr f t
+              _     -> other
+          App s t       -> fail "redexView: impossible App"
     where
-        top      = snd . last
-        other sp = NonRedex <$> forceClosure (top sp)
+        other = return $ NonRedex (f p)
+  conViewX t f = do
+      (c,_):args <- spineX t id
+      s <- forceClosure c
+      case s of
+          Def c -> ConApp c <$> mapM (liftPtr f . fst) args
+          _       -> return $ NonCon (f t)
 
-data ConView = ConApp Name [Term]
-             | NonCon Term
+instance (SpineX a, Typeable a, Typeable b, Show a, Show b) => SpineX (Var b (TermX' a)) where
+  spineX p f =
+    case p of
+        Def (F b) -> spineX b (f . Def . F)
+        App s' t -> do
+            s <- forceClosure s'
+            sp <- spineX s f
+            t' <- liftPtr f t
+            return $ sp ++ [(t', f p)]
+        _  -> do
+          p' <- evaluated (f p)
+          return [(p',f p)]
+  redexViewX p f = do
+    (h,_):args <- spineX p id
+    t <- forceClosure h
+    case t of
+        Def (B x) -> other
+        Def (F c) -> redexViewX c (f . Def . F)
+        Lam s -> case args of
+            [(t,_)] -> Beta <$> traverse (liftPtr f) s <*> liftPtr f t
+            _     -> other
+        App s t -> fail "redexView: impossible App"
+    where
+      other = return $ NonRedex (f p)
+  conViewX t f = do
+      (c,_):args <- spineX t id
+      s <- forceClosure c
+      case s of
+          Def (F c) -> conViewX c (f . Def. F)
+          _ -> return $ NonCon (f t)
 
-conView :: Term -> TC ConView
-conView t = do
-    sp <- spine t
-    case sp of
-        (c,_):args  -> do
-            s <- forceClosure c
-            case s of
-                Def c   -> return $ ConApp c $ map fst args
-                _       -> return $ NonCon t
-        _   -> fail "conView: impossibly empty spine"
+
+-- | @spine (f a b c) = [(f, f), (a, f a), (b, f a b), (c, f a b c)]@
+spine :: (Show a, Typeable a, SpineX a) => TermX a -> TC [(TermX a, TermX a)]
+spine t = do
+  p <- forceClosure t
+  xs <- spineX p id
+  mapM (\(x,y) -> (,) x <$> evaluated y) xs
+
+redexView :: (Show a, Typeable a, SpineX a) => TermX a -> TC (RedexViewX a)
+redexView p = do
+  t <- forceClosure p
+  redexViewX t id
+
+conView :: (Show a, Typeable a, SpineX a) => TermX a -> TC (ConViewX a)
+conView p = do
+    t <- forceClosure p
+    conViewX t id
 
 data Progress = NoProgress | YesProgress
 
@@ -83,48 +132,7 @@ whenProgress :: Monad m => Progress -> m a -> m ()
 whenProgress YesProgress m = m >> return ()
 whenProgress NoProgress  m = return ()
 
-class WHNF a where
-    whnf :: a -> TC Progress
-
-instance (WHNF a, WHNF b) => WHNF (a,b) where
-    whnf (x,y) = mappend <$> whnf x <*> whnf y
-
-instance WHNF Type where
-    whnf p = do
-        a <- forceClosure p
-        case a of
-            RPi _ _ -> return NoProgress
-            Pi _ _  -> return NoProgress
-            Fun _ _ -> return NoProgress
-            Set     -> return NoProgress
-            El t    -> whnf t
-
-instance WHNF Term where
-    whnf p = do
-        v <- redexView p
-        case v of
-            NonRedex t -> case t of
-                App s t -> do
-                    pr <- whnf s
-                    whenProgress pr $ whnf p
-                    return pr
-                Lam _   -> return NoProgress
-                Var _   -> return NoProgress
-                Def _   -> return NoProgress
-            Beta s t    -> do
-                poke p (forceClosure =<< subst t s)
-                whnf p
-            Iota f ts   -> do
-                Defn _ _ cs <- getDefinition f
-                m           <- match cs ts
-                case m of
-                    YesMatch t -> do
-                        poke p (forceClosure t)
-                        whnf p
-                    MaybeMatch -> return NoProgress
-                    NoMatch    -> fail "Incomplete pattern matching"
-
-data Match a = YesMatch a | MaybeMatch | NoMatch
+data Match a = YesMatch a | MaybeMatch | NoMatch deriving (Functor)
 
 instance Monoid a => Monoid (Match a) where
     mempty               = YesMatch mempty
@@ -133,11 +141,6 @@ instance Monoid a => Monoid (Match a) where
     mappend MaybeMatch _ = MaybeMatch
     mappend _ MaybeMatch = MaybeMatch
     mappend (YesMatch ts) (YesMatch ss) = YesMatch $ ts `mappend` ss
-
-instance Functor Match where
-    fmap f (YesMatch x) = YesMatch $ f x
-    fmap f NoMatch      = NoMatch
-    fmap f MaybeMatch   = MaybeMatch
 
 instance Foldable Match where
     foldMap f (YesMatch x) = f x
@@ -153,20 +156,93 @@ choice :: Match a -> Match a -> Match a
 choice NoMatch m = m
 choice m       _ = m
 
+class WHNF a where
+    whnf :: a -> TC Progress
+
+instance (WHNF a, WHNF b) => WHNF (a,b) where
+    whnf (x,y) = mappend <$> whnf x <*> whnf y
+
+whnfX :: (Pointer ptr a, WHNF a) => ptr -> TC Progress
+whnfX p = do
+      t <- forceClosure p
+      whnf t
+
+instance (WHNF a, Typeable a, Show a) => WHNF (TypeX a) where whnf = whnfX
+instance (WHNF a, Typeable a, Show a) => WHNF (TypeX' a) where
+    whnf a =
+      case a of
+            RPi _ _ -> return NoProgress
+            Pi _ _  -> return NoProgress
+            Fun _ _ -> return NoProgress
+            Set     -> return NoProgress
+            El t    -> whnf t
+
+instance WHNF (TermX Name) where
+    whnf p = do
+        p' <- forceClosure p :: TC (TermX' Name)
+        v <- redexViewX p' id
+        case v of
+            NonRedex t -> case t of
+                App s t -> do
+                    pr <- whnf s
+                    whenProgress pr $ whnf p
+                    return pr
+                Lam _   -> return NoProgress
+                Def _ -> return NoProgress
+            Beta s t    -> do
+                poke p (forceClosure =<< subst t s)
+                whnf p
+            Iota f ts   -> do
+                Defn _ _ cs <- getDefinition f
+                m           <- match cs ts
+                case m of
+                    YesMatch t -> do
+                        poke p (forceClosure t)
+                        whnf p
+                    MaybeMatch -> return NoProgress
+                    NoMatch    -> fail "Incomplete pattern matching"
+
+instance WHNF (TermX (Var DeBruijnIndex (TermX' Name))) where
+    whnf p = do
+        p' <- forceClosure p
+        v <- redexViewX p' id
+        case v of
+            NonRedex t -> case t of
+                App s t -> do
+                    pr <- whnf s
+                    whenProgress pr $ whnf p
+                    return pr
+                Lam _   -> return NoProgress
+                Def (B _) -> return NoProgress
+                Def (F _) -> return NoProgress
+            Beta s t    -> do
+                poke p (forceClosure =<< subst t s)
+                whnf p
+            Iota f ts   -> do
+                Defn _ _ cs <- getDefinition f
+                m           <- match cs ts
+                case m of
+                    YesMatch t -> do
+                        poke p (forceClosure t)
+                        whnf p
+                    MaybeMatch -> return NoProgress
+                    NoMatch    -> fail "Incomplete pattern matching"
+
+type MatchConstraint a = (Show a, Typeable a, SpineX a, WHNF (TermX a))
 -- | Invariant: there are the same number of terms as there are patterns in the clauses
-match :: [Clause] -> [Term] -> TC (Match Term)
+match :: MatchConstraint a => [ClauseX (TermX a)] -> [TermX a] -> TC (Match (TermX a))
 match cs ts = foldr1 choice <$> mapM (flip matchClause ts) cs
 
-matchClause :: Clause -> [Term] -> TC (Match Term)
+matchClause :: MatchConstraint a => ClauseX (TermX a) -> [TermX a] -> TC (Match (TermX a))
 matchClause c ts = do
     Clause ps t <- forceClosure c
     m <- matchPatterns ps ts
     traverse (\ss -> substs ss t) m
 
-matchPatterns :: [Pattern] -> [Term] -> TC (Match [Term])
+matchPatterns :: MatchConstraint a => [Pattern] -> [TermX a] -> TC (Match [TermX a])
 matchPatterns ps ts = mconcat <$> zipWithM matchPattern ps ts
 
-matchPattern :: Pattern -> Term -> TC (Match [Term])
+matchPattern :: MatchConstraint a => Pattern -> TermX a -> TC (Match [TermX a])
 matchPattern (VarP _) t = return $ YesMatch [t]
 matchPattern (ConP c ps) t = do
     whnf t
@@ -178,4 +254,3 @@ matchPattern (ConP c ps) t = do
         _               -> return MaybeMatch
   where
     dropPars ts = drop (length ts - length ps) ts
-

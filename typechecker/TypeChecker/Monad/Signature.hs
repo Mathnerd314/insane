@@ -21,7 +21,7 @@ getDefinition x = do
         Just d  -> return d
         Nothing -> fail $ "not a defined name " ++ x
 
-withDefinition :: Name -> (Definition-> TC a) -> TC a
+withDefinition :: Name -> (Definition -> TC a) -> TC a
 withDefinition x f = f =<< getDefinition x
 
 addConstraint :: TC () -> TC ()

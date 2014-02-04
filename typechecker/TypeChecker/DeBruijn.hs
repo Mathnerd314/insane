@@ -1,4 +1,4 @@
-
+{-# LANGUAGE TypeFamilies #-}
 module TypeChecker.DeBruijn where
 
 import Control.Applicative
@@ -12,7 +12,35 @@ import TypeChecker.Monad.Heap
 import Utils
 
 class DeBruijn a where
-    transform :: (Integer -> DeBruijnIndex -> TC Term') -> Integer -> a -> TC a
+    type B a :: *
+    type B a = Var DeBruijnIndex (TermX' Name)
+    transform :: (Integer -> DeBruijnIndex -> TC (TermX' (B a))) -> Integer -> a -> TC a
+    raiseByFrom :: Integer -> Integer  -> a -> TC a
+    raiseByFrom k = transform f
+        where
+            f :: Integer -> DeBruijnIndex -> TC (TermX' (B a))
+            f n m | m < n     = return $ Def (B m)
+                  | otherwise = return $ Def (B (m + k))
+
+    raiseBy :: Integer -> a -> TC a
+    raiseBy k = raiseByFrom k 0
+
+    raise :: a -> TC a
+    raise = raiseBy 1
+
+    substUnder  :: Integer -> TermX (B a) -> a -> TC a
+    substUnder n0 t = transform f n0
+        where
+            f n m | m < n     = return $ Def (B m)
+                  | m == n    = forceClosure =<< raiseByFrom (n - n0) n0 t
+                  | otherwise = return $ Def (B (m - 1))
+
+    subst :: TermX (B a) -> Abs a -> TC a
+    subst t = substUnder 0 t . absBody
+
+    substs :: [TermX (B a)] -> a -> TC a
+    substs []     a = return a
+    substs (t:ts) a = substUnder 0 t =<< flip substs a =<< raise ts
 
 transformX :: (Pointer ptr a, DeBruijn a) => (Integer -> DeBruijnIndex -> TC Term') -> Integer -> ptr -> TC ptr
 transformX f n = liftPtrM (transform f n)
@@ -21,6 +49,7 @@ instance (DeBruijn a, Typeable a, Show a) => DeBruijn (TypeX a) where transform 
 instance DeBruijn Term where transform = transformX
 
 instance (DeBruijn a, Typeable a, Show a) => DeBruijn (TypeX' a) where
+    type B (TypeX' a) = B a
     transform f n t = case t of
         Pi a b  -> uncurry Pi  <$> trf (a,b)
         RPi tel a -> uncurry RPi <$> transform f n' (tel, a)
@@ -36,13 +65,13 @@ instance DeBruijn a => DeBruijn (RBind a) where
     transform f n (RBind x a) =
       RBind x <$> transform f n a
 
-instance DeBruijn Char where
+instance DeBruijn (TermX' Name) where
    transform _ _ = return
-      
+
 instance DeBruijn Term' where
     transform f n t = case t of
-        Def f   -> Def <$> trf f
-        Var m   -> f n m
+        Def (F f) -> Def . F <$> trf f
+        Def (B m) -> f n m
         App s t -> uncurry App <$> trf (s,t)
         Lam t   -> Lam <$> trf t
         where
@@ -57,33 +86,6 @@ instance DeBruijn a => DeBruijn (Abs a) where
 
 instance DeBruijn a => DeBruijn [a] where
     transform f n = traverse (transform f n)
-
-raiseByFrom :: DeBruijn a => Integer -> Integer  -> a -> TC a
-raiseByFrom k = transform f
-    where
-        f :: Integer -> DeBruijnIndex -> TC (TermX' b)
-        f n m | m < n     = return $ Var m
-              | otherwise = return $ Var (m + k)
-
-raiseBy :: DeBruijn a => Integer -> a -> TC a
-raiseBy k = raiseByFrom k 0
-
-raise :: DeBruijn a => a -> TC a
-raise = raiseBy 1
-
-substUnder  :: DeBruijn a => Integer -> Term -> a -> TC a
-substUnder n0 t = transform f n0
-    where
-        f n m | m < n     = return $ Var m
-              | m == n    = forceClosure =<< raiseByFrom (n - n0) n0 t
-              | otherwise = return $ Var (m - 1)
-
-subst :: DeBruijn a => Term -> Abs a -> TC a
-subst t = substUnder 0 t . absBody
-
-substs :: DeBruijn a => [Term] -> a -> TC a
-substs []     a = return a
-substs (t:ts) a = substUnder 0 t =<< flip substs a =<< raise ts
 
 
 {-
